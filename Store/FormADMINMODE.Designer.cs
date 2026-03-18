@@ -104,11 +104,13 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1050, 650);
-            this.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.Margin = new System.Windows.Forms.Padding(2);
             this.Name = "FormADMINMODE";
             this.Text = "Панель администратора";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormADMINMODE_FormClosing);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.FormADMINMODE_Paint);
+            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.FormADMINMODE_KeyDown);
+            this.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.FormADMINMODE_PreviewKeyDown);
             this.Resize += new System.EventHandler(this.FormADMINMODE_Resize);
             ((System.ComponentModel.ISupportInitialize)(this.kursovaya1DataSet)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.gamesBindingSource)).EndInit();
