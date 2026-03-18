@@ -15,6 +15,7 @@ namespace Store
     public partial class FormADMINMODE : Form
     {
         private string currentAdminLogin;
+        private string adminID;
         private Panel contentPanel;
 
         // Цветовая схема
@@ -26,10 +27,11 @@ namespace Store
         private Color textLight = Color.FromArgb(251, 251, 252);
         private Color textGray = Color.FromArgb(191, 197, 210);
 
-        public FormADMINMODE(string adminLogin,string userid)
+        public FormADMINMODE(string adminLogin, string userid)
         {
             InitializeComponent();
             currentAdminLogin = adminLogin;
+            adminID = userid;
 
             // Настройка формы
             this.Text = "Панель администратора";
@@ -57,17 +59,17 @@ namespace Store
             Label welcomeLabel = new Label
             {
                 Location = new Point(20, 30),
-                Size = new Size(210, 60),
+                Size = new Size(210, 80),
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 ForeColor = Color.Gold,
-                Text = $"Здравствуйте,\n{currentAdminLogin}!\nРежим администратора",
+                Text = $"Здравствуйте,\n{currentAdminLogin}!\nID: {adminID}\nРежим администратора",
                 TextAlign = ContentAlignment.MiddleLeft
             };
             menuPanel.Controls.Add(welcomeLabel);
 
             // Кнопки меню
             string[] menuItems = { "📋 ИГРЫ", "👥 ПОЛЬЗОВАТЕЛИ", "📚 БИБЛИОТЕКА", "⭐ РЕЙТИНГИ", "🚪 ВЫХОД" };
-            int yPos = 120;
+            int yPos = 130;
 
             for (int i = 0; i < menuItems.Length; i++)
             {
@@ -81,7 +83,7 @@ namespace Store
                     FlatStyle = FlatStyle.Flat,
                     Text = menuItems[i],
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Tag = i // Запоминаем индекс для обработки
+                    Tag = i
                 };
                 menuButton.FlatAppearance.BorderSize = 0;
                 menuButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(50, 50, 50);
@@ -104,7 +106,7 @@ namespace Store
             };
             this.Controls.Add(contentPanel);
 
-            // Создаем таблицы для каждой секции
+            // Создаем секции
             CreateGamesSection();
             CreateUsersSection();
             CreateLibrarySection();
@@ -137,12 +139,27 @@ namespace Store
             };
             gamesPanel.Controls.Add(titleLabel);
 
-            // DataGridView для игр
+            // Создаем разделительную панель: слева - таблица, справа - изображение
+            Panel leftPanel = new Panel
+            {
+                Location = new Point(0, 60),
+                Size = new Size(contentPanel.Width - 400, contentPanel.Height - 150),
+                BackColor = Color.Transparent
+            };
+
+            Panel rightPanel = new Panel
+            {
+                Location = new Point(contentPanel.Width - 380, 60),
+                Size = new Size(360, contentPanel.Height - 150),
+                BackColor = Color.Transparent
+            };
+
+            // DataGridView для игр (БЕЗ колонки Images)
             DataGridView dgvGames = new DataGridView
             {
                 Name = "dgvGames",
-                Location = new Point(0, 60),
-                Size = new Size(contentPanel.Width, contentPanel.Height - 150),
+                Location = new Point(0, 0),
+                Size = new Size(leftPanel.Width, leftPanel.Height - 40),
                 BackgroundColor = darkPanel,
                 ForeColor = textLight,
                 GridColor = Color.FromArgb(60, 60, 60),
@@ -166,12 +183,162 @@ namespace Store
             dgvGames.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 11, FontStyle.Bold);
             dgvGames.EnableHeadersVisualStyles = false;
 
-            // Привязка данных
+            // Настройка колонок - ИСКЛЮЧАЕМ колонку Images
+            dgvGames.AutoGenerateColumns = false;
+            dgvGames.Columns.Clear();
+
+            // Колонка ID
+            DataGridViewTextBoxColumn colId = new DataGridViewTextBoxColumn
+            {
+                Name = "id_game",
+                HeaderText = "ID",
+                DataPropertyName = "id_game",
+                Width = 50,
+                ReadOnly = true
+            };
+            dgvGames.Columns.Add(colId);
+
+            // Колонка названия
+            DataGridViewTextBoxColumn colName = new DataGridViewTextBoxColumn
+            {
+                Name = "name_game",
+                HeaderText = "Название игры",
+                DataPropertyName = "name_game",
+                Width = 200
+            };
+            dgvGames.Columns.Add(colName);
+
+            // Колонка жанра
+            DataGridViewTextBoxColumn colGenre = new DataGridViewTextBoxColumn
+            {
+                Name = "Genre_id",
+                HeaderText = "Жанр",
+                DataPropertyName = "Genre_id",
+                Width = 100
+            };
+            dgvGames.Columns.Add(colGenre);
+
+            // Колонка цены
+            DataGridViewTextBoxColumn colPrice = new DataGridViewTextBoxColumn
+            {
+                Name = "price",
+                HeaderText = "Цена",
+                DataPropertyName = "price",
+                Width = 80,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Format = "N2",
+                    ForeColor = Color.Gold
+                }
+            };
+            dgvGames.Columns.Add(colPrice);
+
+            // Колонка года выпуска
+            DataGridViewTextBoxColumn colYear = new DataGridViewTextBoxColumn
+            {
+                Name = "Year_release",
+                HeaderText = "Год",
+                DataPropertyName = "Year_release",
+                Width = 80
+            };
+            dgvGames.Columns.Add(colYear);
+
+            // Привязываем данные
             dgvGames.DataSource = gamesBindingSource;
 
-            gamesPanel.Controls.Add(dgvGames);
+            leftPanel.Controls.Add(dgvGames);
 
-            // Панель с кнопками действий
+            // Панель для изображения (справа)
+            Panel imagePanel = new Panel
+            {
+                Location = new Point(0, 0),
+                Size = new Size(rightPanel.Width, 350),
+                BackColor = Color.FromArgb(40, 40, 40),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            Label imageLabel = new Label
+            {
+                Location = new Point(10, 10),
+                Size = new Size(340, 30),
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                ForeColor = textLight,
+                Text = "🎮 ИЗОБРАЖЕНИЕ ИГРЫ",
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            imagePanel.Controls.Add(imageLabel);
+
+            // Большой PictureBox для отображения изображения
+            PictureBox gamePictureBox = new PictureBox
+            {
+                Name = "gamePictureBox",
+                Location = new Point(20, 50),
+                Size = new Size(300, 250),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.FromArgb(50, 50, 50)
+            };
+            imagePanel.Controls.Add(gamePictureBox);
+
+            // Кнопки для работы с изображением
+            Button loadImageBtn = new Button
+            {
+                Location = new Point(20, 310),
+                Size = new Size(140, 30),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                BackColor = accentBlue,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Text = "📁 ЗАГРУЗИТЬ"
+            };
+            loadImageBtn.FlatAppearance.BorderSize = 0;
+            loadImageBtn.Click += (s, e) => LoadGameImage(gamePictureBox);
+
+            Button clearImageBtn = new Button
+            {
+                Location = new Point(170, 310),
+                Size = new Size(140, 30),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                BackColor = accentRed,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Text = "🗑️ ОЧИСТИТЬ"
+            };
+            clearImageBtn.FlatAppearance.BorderSize = 0;
+            clearImageBtn.Click += (s, e) => ClearGameImage(gamePictureBox);
+
+            imagePanel.Controls.Add(loadImageBtn);
+            imagePanel.Controls.Add(clearImageBtn);
+
+            rightPanel.Controls.Add(imagePanel);
+
+            // Информационная панель о выбранной игре
+            Panel infoPanel = new Panel
+            {
+                Location = new Point(0, 360),
+                Size = new Size(rightPanel.Width, 100),
+                BackColor = Color.FromArgb(35, 35, 35),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            Label selectedGameLabel = new Label
+            {
+                Name = "selectedGameLabel",
+                Location = new Point(10, 10),
+                Size = new Size(340, 80),
+                Font = new Font("Segoe UI", 11),
+                ForeColor = textGray,
+                Text = "Выберите игру из списка,\nчтобы просмотреть\nили изменить изображение",
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            infoPanel.Controls.Add(selectedGameLabel);
+
+            rightPanel.Controls.Add(infoPanel);
+
+            gamesPanel.Controls.Add(leftPanel);
+            gamesPanel.Controls.Add(rightPanel);
+
+            // Панель с кнопками действий (внизу)
             Panel buttonPanel = new Panel
             {
                 Location = new Point(0, contentPanel.Height - 80),
@@ -179,11 +346,11 @@ namespace Store
                 BackColor = Color.Transparent
             };
 
-            Button saveButton = CreateActionButton("💾 СОХРАНИТЬ", accentGreen, 0);
+            Button saveButton = CreateActionButton("💾 СОХРАНИТЬ", accentGreen);
             saveButton.Location = new Point(contentPanel.Width - 400, 10);
             saveButton.Click += (s, e) => SaveGames();
 
-            Button refreshButton = CreateActionButton("🔄 ОБНОВИТЬ", Color.FromArgb(100, 100, 100), 1);
+            Button refreshButton = CreateActionButton("🔄 ОБНОВИТЬ", Color.FromArgb(100, 100, 100));
             refreshButton.Location = new Point(contentPanel.Width - 270, 10);
             refreshButton.Click += (s, e) => RefreshGames();
 
@@ -192,7 +359,178 @@ namespace Store
 
             gamesPanel.Controls.Add(buttonPanel);
 
+            // Обработчик выбора строки в DataGridView
+            dgvGames.SelectionChanged += (s, e) =>
+            {
+                if (dgvGames.SelectedRows.Count > 0)
+                {
+                    DataGridViewRow row = dgvGames.SelectedRows[0];
+                    int gameId = Convert.ToInt32(row.Cells["id_game"].Value);
+                    string gameName = row.Cells["name_game"].Value?.ToString() ?? "Неизвестная игра";
+
+                    // Обновляем информацию о выбранной игре
+                    selectedGameLabel.Text = $"Выбрана игра:\n{gameName}\nID: {gameId}\n\nНажмите 'Загрузить' чтобы добавить изображение";
+
+                    // Загружаем изображение в PictureBox
+                    LoadGameImageToPictureBox(gameId, gamePictureBox);
+                    gamePictureBox.Tag = gameId; // Сохраняем ID игры в Tag
+                }
+            };
+
             contentPanel.Controls.Add(gamesPanel);
+        }
+
+        // Метод для загрузки изображения из файла
+        private void LoadGameImage(PictureBox pictureBox)
+        {
+            if (pictureBox.Tag == null)
+            {
+                MessageBox.Show("Сначала выберите игру из списка!", "Предупреждение",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using (OpenFileDialog openFileDialog = new OpenFileDialog())
+            {
+                openFileDialog.Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif";
+                openFileDialog.Title = "Выберите изображение для игры";
+
+                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        // Загружаем изображение
+                        Image image = Image.FromFile(openFileDialog.FileName);
+                        pictureBox.Image = image;
+                        pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+
+                        // Сохраняем изображение в DataSet
+                        int gameId = (int)pictureBox.Tag;
+
+                        // Конвертируем изображение в byte[]
+                        using (MemoryStream ms = new MemoryStream())
+                        {
+                            image.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                            byte[] imageData = ms.ToArray();
+
+                            // Ищем строку с игрой в DataSet
+                            DataRow[] rows = kursovaya1DataSet.Games.Select($"id_game = {gameId}");
+                            if (rows.Length > 0)
+                            {
+                                rows[0]["Images"] = imageData;
+                            }
+                        }
+
+                        MessageBox.Show("Изображение успешно загружено! Не забудьте сохранить изменения.",
+                            "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Ошибка загрузки изображения: {ex.Message}",
+                            "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+
+        // Метод для очистки изображения
+        private void ClearGameImage(PictureBox pictureBox)
+        {
+            if (pictureBox.Tag == null)
+            {
+                MessageBox.Show("Сначала выберите игру из списка!", "Предупреждение",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            DialogResult result = MessageBox.Show("Удалить изображение для этой игры?",
+                "Подтверждение", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                int gameId = (int)pictureBox.Tag;
+
+                // Очищаем изображение в DataSet
+                DataRow[] rows = kursovaya1DataSet.Games.Select($"id_game = {gameId}");
+                if (rows.Length > 0)
+                {
+                    rows[0]["Images"] = DBNull.Value;
+                }
+
+                // Очищаем PictureBox
+                SetDefaultGameImage(pictureBox);
+
+                MessageBox.Show("Изображение удалено! Не забудьте сохранить изменения.",
+                    "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        // Метод для загрузки изображения в PictureBox из DataSet
+        private void LoadGameImageToPictureBox(int gameId, PictureBox pictureBox)
+        {
+            try
+            {
+                DataRow[] gameRows = kursovaya1DataSet.Games.Select($"id_game = {gameId}");
+                if (gameRows.Length > 0 && gameRows[0]["Images"] != DBNull.Value)
+                {
+                    byte[] imageData = (byte[])gameRows[0]["Images"];
+                    if (imageData != null && imageData.Length > 0)
+                    {
+                        using (MemoryStream ms = new MemoryStream(imageData))
+                        {
+                            if (pictureBox.Image != null)
+                            {
+                                pictureBox.Image.Dispose();
+                                pictureBox.Image = null;
+                            }
+                            pictureBox.Image = Image.FromStream(ms);
+                        }
+                        pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                    }
+                    else
+                    {
+                        SetDefaultGameImage(pictureBox);
+                    }
+                }
+                else
+                {
+                    SetDefaultGameImage(pictureBox);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка загрузки изображения: {ex.Message}");
+                SetDefaultGameImage(pictureBox);
+            }
+        }
+
+        // Метод для установки изображения по умолчанию
+        private void SetDefaultGameImage(PictureBox pictureBox)
+        {
+            Bitmap defaultImage = new Bitmap(300, 250);
+            using (Graphics g = Graphics.FromImage(defaultImage))
+            {
+                g.Clear(Color.FromArgb(60, 60, 60));
+                using (Font font = new Font("Segoe UI", 20, FontStyle.Bold))
+                {
+                    string text = "🎮\nНЕТ\nИЗОБРАЖЕНИЯ";
+                    StringFormat sf = new StringFormat
+                    {
+                        Alignment = StringAlignment.Center,
+                        LineAlignment = StringAlignment.Center
+                    };
+                    using (SolidBrush brush = new SolidBrush(Color.FromArgb(100, 100, 100)))
+                    {
+                        g.DrawString(text, font, brush, new RectangleF(0, 0, 300, 250), sf);
+                    }
+                }
+            }
+
+            if (pictureBox.Image != null)
+                pictureBox.Image.Dispose();
+
+            pictureBox.Image = defaultImage;
+            pictureBox.SizeMode = PictureBoxSizeMode.CenterImage;
         }
 
         private void CreateUsersSection()
@@ -220,8 +558,8 @@ namespace Store
             DataGridView dgvUsers = new DataGridView
             {
                 Name = "dgvUsers",
-                Location = new Point(0, 60),
-                Size = new Size(contentPanel.Width, contentPanel.Height - 150),
+                Location = new Point(50, 60),
+                Size = new Size(contentPanel.Width - 100, contentPanel.Height - 150),
                 BackgroundColor = darkPanel,
                 ForeColor = textLight,
                 GridColor = Color.FromArgb(60, 60, 60),
@@ -255,11 +593,11 @@ namespace Store
                 BackColor = Color.Transparent
             };
 
-            Button saveButton = CreateActionButton("💾 СОХРАНИТЬ", accentGreen, 0);
+            Button saveButton = CreateActionButton("💾 СОХРАНИТЬ", accentGreen);
             saveButton.Location = new Point(contentPanel.Width - 400, 10);
             saveButton.Click += (s, e) => SaveUsers();
 
-            Button refreshButton = CreateActionButton("🔄 ОБНОВИТЬ", Color.FromArgb(100, 100, 100), 1);
+            Button refreshButton = CreateActionButton("🔄 ОБНОВИТЬ", Color.FromArgb(100, 100, 100));
             refreshButton.Location = new Point(contentPanel.Width - 270, 10);
             refreshButton.Click += (s, e) => RefreshUsers();
 
@@ -293,7 +631,6 @@ namespace Store
             };
             libraryPanel.Controls.Add(titleLabel);
 
-            // DataGridView для библиотеки
             DataGridView dgvLibrary = new DataGridView
             {
                 Name = "dgvLibrary",
@@ -312,7 +649,6 @@ namespace Store
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
             };
 
-            // Стиль для DataGridView
             dgvLibrary.DefaultCellStyle.BackColor = Color.FromArgb(40, 40, 40);
             dgvLibrary.DefaultCellStyle.ForeColor = textLight;
             dgvLibrary.DefaultCellStyle.SelectionBackColor = accentBlue;
@@ -323,124 +659,10 @@ namespace Store
             dgvLibrary.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 11, FontStyle.Bold);
             dgvLibrary.EnableHeadersVisualStyles = false;
 
-            // Отключаем автоматическую генерацию колонок
-            dgvLibrary.AutoGenerateColumns = false;
-            dgvLibrary.Columns.Clear();
-
-            // Колонка ID записи в библиотеке
-            DataGridViewTextBoxColumn colLibId = new DataGridViewTextBoxColumn
-            {
-                Name = "id_lib",
-                HeaderText = "ID записи",
-                DataPropertyName = "id_lib",
-                Width = 80,
-                ReadOnly = true,
-                DefaultCellStyle = new DataGridViewCellStyle { ForeColor = textGray }
-            };
-            dgvLibrary.Columns.Add(colLibId);
-
-            // Колонка ID пользователя
-            DataGridViewTextBoxColumn colUserId = new DataGridViewTextBoxColumn
-            {
-                Name = "id_user",
-                HeaderText = "ID пользователя",
-                DataPropertyName = "id_user",
-                Width = 100,
-                ReadOnly = false
-            };
-            dgvLibrary.Columns.Add(colUserId);
-
-            // Колонка ID игры
-            DataGridViewTextBoxColumn colGameId = new DataGridViewTextBoxColumn
-            {
-                Name = "id_game",
-                HeaderText = "ID игры",
-                DataPropertyName = "id_game",
-                Width = 80,
-                ReadOnly = false
-            };
-            dgvLibrary.Columns.Add(colGameId);
-
-            // Колонка для названия игры (вычисляемое поле)
-            DataGridViewTextBoxColumn colGameName = new DataGridViewTextBoxColumn
-            {
-                Name = "game_name",
-                HeaderText = "Название игры",
-                Width = 250,
-                ReadOnly = true,
-                DefaultCellStyle = new DataGridViewCellStyle
-                {
-                    ForeColor = textLight,
-                    Font = new Font("Segoe UI", 10, FontStyle.Bold)
-                }
-            };
-            dgvLibrary.Columns.Add(colGameName);
-
-            // Колонка для имени пользователя (для удобства)
-            DataGridViewTextBoxColumn colUserName = new DataGridViewTextBoxColumn
-            {
-                Name = "nickname",
-                HeaderText = "Имя пользователя",
-                Width = 150,
-                ReadOnly = true,
-                DefaultCellStyle = new DataGridViewCellStyle { ForeColor = accentGreen }
-            };
-            dgvLibrary.Columns.Add(colUserName);
-
-            // Кнопки действий
-            DataGridViewButtonColumn saveButton = new DataGridViewButtonColumn
-            {
-                Name = "SaveButton",
-                HeaderText = "Действия",
-                Text = "💾 Сохранить",
-                UseColumnTextForButtonValue = true,
-                Width = 100
-            };
-            saveButton.DefaultCellStyle.BackColor = accentGreen;
-            saveButton.DefaultCellStyle.ForeColor = Color.White;
-            saveButton.DefaultCellStyle.SelectionBackColor = accentGreen;
-            saveButton.DefaultCellStyle.SelectionForeColor = Color.White;
-            dgvLibrary.Columns.Add(saveButton);
-
-            DataGridViewButtonColumn refreshButton = new DataGridViewButtonColumn
-            {
-                Name = "RefreshButton",
-                HeaderText = "",
-                Text = "🔄 Обновить",
-                UseColumnTextForButtonValue = true,
-                Width = 100
-            };
-            refreshButton.DefaultCellStyle.BackColor = Color.FromArgb(100, 100, 100);
-            refreshButton.DefaultCellStyle.ForeColor = Color.White;
-            refreshButton.DefaultCellStyle.SelectionBackColor = Color.FromArgb(100, 100, 100);
-            refreshButton.DefaultCellStyle.SelectionForeColor = Color.White;
-            dgvLibrary.Columns.Add(refreshButton);
-
-            // Привязываем данные
             dgvLibrary.DataSource = libraryBindingSource;
-
-            // Подписываемся на событие форматирования ячеек для отображения названий игр и имен пользователей
-            dgvLibrary.CellFormatting += DgvLibrary_CellFormatting;
-
-            // Обработчик клика по кнопкам
-            dgvLibrary.CellClick += (s, e) =>
-            {
-                if (e.RowIndex >= 0)
-                {
-                    if (e.ColumnIndex == dgvLibrary.Columns["SaveButton"].Index)
-                    {
-                        SaveLibraryChanges();
-                    }
-                    else if (e.ColumnIndex == dgvLibrary.Columns["RefreshButton"].Index)
-                    {
-                        RefreshLibraryData();
-                    }
-                }
-            };
 
             libraryPanel.Controls.Add(dgvLibrary);
 
-            // Панель с информацией и дополнительными кнопками
             Panel bottomPanel = new Panel
             {
                 Location = new Point(50, contentPanel.Height - 110),
@@ -449,7 +671,6 @@ namespace Store
                 BackColor = Color.Transparent
             };
 
-            // Информационная метка
             Label infoLabel = new Label
             {
                 Location = new Point(10, 10),
@@ -461,7 +682,6 @@ namespace Store
             };
             bottomPanel.Controls.Add(infoLabel);
 
-            // Кнопка глобального сохранения
             Button globalSaveBtn = new Button
             {
                 Location = new Point(bottomPanel.Width - 240, 15),
@@ -479,113 +699,6 @@ namespace Store
             libraryPanel.Controls.Add(bottomPanel);
 
             contentPanel.Controls.Add(libraryPanel);
-        }
-        private void DgvLibrary_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
-        {
-            try
-            {
-                DataGridView dgv = sender as DataGridView;
-                if (dgv == null) return;
-
-                // Форматирование колонки с названием игры
-                if (dgv.Columns[e.ColumnIndex].Name == "game_name" && e.RowIndex >= 0)
-                {
-                    DataGridViewRow row = dgv.Rows[e.RowIndex];
-                    if (row.Cells["id_game"].Value != null && row.Cells["id_game"].Value != DBNull.Value)
-                    {
-                        int gameId = Convert.ToInt32(row.Cells["id_game"].Value);
-
-                        // Ищем название игры в таблице Games
-                        DataRow[] gameRows = kursovaya1DataSet.Games.Select($"id_game = {gameId}");
-                        if (gameRows.Length > 0)
-                        {
-                            e.Value = gameRows[0]["name_game"].ToString();
-                            e.FormattingApplied = true;
-                        }
-                        else
-                        {
-                            e.Value = "Неизвестная игра";
-                            e.FormattingApplied = true;
-                        }
-                    }
-                }
-
-                // Форматирование колонки с именем пользователя
-                if (dgv.Columns[e.ColumnIndex].Name == "nickname" && e.RowIndex >= 0)
-                {
-                    DataGridViewRow row = dgv.Rows[e.RowIndex];
-                    if (row.Cells["id_user"].Value != null && row.Cells["id_user"].Value != DBNull.Value)
-                    {
-                        int userId = Convert.ToInt32(row.Cells["id_user"].Value);
-
-                        // Ищем имя пользователя в таблице Users
-                        DataRow[] userRows = kursovaya1DataSet.Users.Select($"id_user = {userId}");
-                        if (userRows.Length > 0)
-                        {
-                            string login = userRows[0]["login"].ToString();
-                            e.Value = login;
-                            e.FormattingApplied = true;
-                        }
-                        else
-                        {
-                            e.Value = "Неизвестный пользователь";
-                            e.FormattingApplied = true;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка в CellFormatting: {ex.Message}");
-            }
-        }
-        private void SaveLibraryChanges()
-        {
-            try
-            {
-                libraryTableAdapter.Update(kursovaya1DataSet.Library);
-                MessageBox.Show("Изменения в библиотеке сохранены!", "Успех",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                // Обновляем отображение
-                RefreshLibraryData();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка при сохранении: {ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-        private void RefreshLibraryData()
-        {
-            try
-            {
-                kursovaya1DataSet.Library.Clear();
-                libraryTableAdapter.Fill(kursovaya1DataSet.Library);
-
-                // Обновляем информационную метку
-                Panel libraryPanel = contentPanel.Controls["panelLibrary"] as Panel;
-                if (libraryPanel != null)
-                {
-                    Panel bottomPanel = libraryPanel.Controls.OfType<Panel>().LastOrDefault();
-                    if (bottomPanel != null)
-                    {
-                        Label infoLabel = bottomPanel.Controls["infoLabel"] as Label;
-                        if (infoLabel != null)
-                        {
-                            infoLabel.Text = $"📊 Всего записей в библиотеке: {kursovaya1DataSet.Library.Rows.Count}";
-                        }
-                    }
-                }
-
-                MessageBox.Show("Данные библиотеки обновлены!", "Информация",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка при обновлении: {ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
         }
 
         private void CreateRatingsSection()
@@ -613,8 +726,8 @@ namespace Store
             DataGridView dgvRatings = new DataGridView
             {
                 Name = "dgvRatings",
-                Location = new Point(0, 60),
-                Size = new Size(contentPanel.Width, contentPanel.Height - 150),
+                Location = new Point(50, 60),
+                Size = new Size(contentPanel.Width - 100, contentPanel.Height - 150),
                 BackgroundColor = darkPanel,
                 ForeColor = textLight,
                 GridColor = Color.FromArgb(60, 60, 60),
@@ -648,11 +761,11 @@ namespace Store
                 BackColor = Color.Transparent
             };
 
-            Button saveButton = CreateActionButton("💾 СОХРАНИТЬ", accentGreen, 0);
+            Button saveButton = CreateActionButton("💾 СОХРАНИТЬ", accentGreen);
             saveButton.Location = new Point(contentPanel.Width - 400, 10);
             saveButton.Click += (s, e) => SaveRatings();
 
-            Button refreshButton = CreateActionButton("🔄 ОБНОВИТЬ", Color.FromArgb(100, 100, 100), 1);
+            Button refreshButton = CreateActionButton("🔄 ОБНОВИТЬ", Color.FromArgb(100, 100, 100));
             refreshButton.Location = new Point(contentPanel.Width - 270, 10);
             refreshButton.Click += (s, e) => RefreshRatings();
 
@@ -664,7 +777,7 @@ namespace Store
             contentPanel.Controls.Add(ratingsPanel);
         }
 
-        private Button CreateActionButton(string text, Color color, int type)
+        private Button CreateActionButton(string text, Color color)
         {
             return new Button
             {
@@ -690,29 +803,28 @@ namespace Store
 
         private void ShowSection(int index)
         {
-            // Скрываем все панели
             foreach (Control control in contentPanel.Controls)
             {
                 if (control is Panel)
                     control.Visible = false;
             }
 
-            // Показываем нужную панель
             switch (index)
             {
-                case 0: // Игры
+                case 0:
                     contentPanel.Controls["panelGames"].Visible = true;
                     break;
-                case 1: // Пользователи
+                case 1:
                     contentPanel.Controls["panelUsers"].Visible = true;
                     break;
-                case 2: // Библиотека
+                case 2:
                     contentPanel.Controls["panelLibrary"].Visible = true;
+                    UpdateLibraryInfo();
                     break;
-                case 3: // Рейтинги
+                case 3:
                     contentPanel.Controls["panelRatings"].Visible = true;
                     break;
-                case 4: // Выход
+                case 4:
                     Logout();
                     break;
             }
@@ -722,17 +834,14 @@ namespace Store
         {
             try
             {
-                // Очищаем DataSet перед загрузкой
                 kursovaya1DataSet.Clear();
 
-                // Загружаем данные в правильном порядке
                 gamesTableAdapter.Fill(kursovaya1DataSet.Games);
                 usersTableAdapter.Fill(kursovaya1DataSet.Users);
                 libraryTableAdapter.Fill(kursovaya1DataSet.Library);
                 ratingsTableAdapter.Fill(kursovaya1DataSet.Ratings);
                 reviewsTableAdapter.Fill(kursovaya1DataSet.Reviews);
 
-                // Обновляем информационные метки
                 UpdateLibraryInfo();
             }
             catch (Exception ex)
@@ -758,7 +867,21 @@ namespace Store
                 }
             }
         }
- 
+
+        private void SaveLibraryChanges()
+        {
+            try
+            {
+                libraryTableAdapter.Update(kursovaya1DataSet.Library);
+                MessageBox.Show("Изменения в библиотеке сохранены!", "Успех",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при сохранении: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
 
         private void SaveGames()
         {
@@ -781,21 +904,6 @@ namespace Store
             {
                 usersTableAdapter.Update(kursovaya1DataSet.Users);
                 MessageBox.Show("Пользователи успешно сохранены!", "Успех",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка сохранения: {ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void SaveLibrary()
-        {
-            try
-            {
-                libraryTableAdapter.Update(kursovaya1DataSet.Library);
-                MessageBox.Show("Библиотека успешно сохранена!", "Успех",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -832,14 +940,6 @@ namespace Store
         {
             kursovaya1DataSet.Users.Clear();
             usersTableAdapter.Fill(kursovaya1DataSet.Users);
-            MessageBox.Show("Данные обновлены!", "Информация",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void RefreshLibrary()
-        {
-            kursovaya1DataSet.Library.Clear();
-            libraryTableAdapter.Fill(kursovaya1DataSet.Library);
             MessageBox.Show("Данные обновлены!", "Информация",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -892,34 +992,46 @@ namespace Store
             {
                 contentPanel.Size = new Size(this.Width - 290, this.Height - 40);
 
-                // Обновляем размеры всех панелей
                 foreach (Control control in contentPanel.Controls)
                 {
-                    if (control is Panel)
+                    if (control is Panel panel)
                     {
-                        control.Size = contentPanel.Size;
+                        panel.Size = contentPanel.Size;
 
-                        // Обновляем размеры DataGridView
-                        foreach (Control subControl in control.Controls)
+                        // Обновляем размеры для секции игр
+                        if (panel.Name == "panelGames")
                         {
-                            if (subControl is DataGridView dgv)
+                            foreach (Control subControl in panel.Controls)
                             {
-                                dgv.Size = new Size(contentPanel.Width, contentPanel.Height - 150);
-                            }
-                            else if (subControl is Panel btnPanel && btnPanel.Location.Y > 0)
-                            {
-                                btnPanel.Location = new Point(0, contentPanel.Height - 80);
-                                btnPanel.Size = new Size(contentPanel.Width, 70);
-
-                                // Обновляем позиции кнопок
-                                foreach (Control btn in btnPanel.Controls)
+                                if (subControl is Panel leftPanel && leftPanel.Location.X == 0)
                                 {
-                                    if (btn is Button)
+                                    leftPanel.Size = new Size(contentPanel.Width - 400, contentPanel.Height - 150);
+
+                                    DataGridView dgv = leftPanel.Controls["dgvGames"] as DataGridView;
+                                    if (dgv != null)
                                     {
-                                        if (btn.Text.Contains("СОХРАНИТЬ"))
-                                            btn.Location = new Point(contentPanel.Width - 400, 10);
-                                        else if (btn.Text.Contains("ОБНОВИТЬ"))
-                                            btn.Location = new Point(contentPanel.Width - 270, 10);
+                                        dgv.Size = new Size(leftPanel.Width, leftPanel.Height - 40);
+                                    }
+                                }
+                                else if (subControl is Panel rightPanel && rightPanel.Location.X > 0)
+                                {
+                                    rightPanel.Location = new Point(contentPanel.Width - 380, 60);
+                                    rightPanel.Size = new Size(360, contentPanel.Height - 150);
+                                }
+                                else if (subControl is Panel btnPanel && btnPanel.Location.Y > 0)
+                                {
+                                    btnPanel.Location = new Point(0, contentPanel.Height - 80);
+                                    btnPanel.Size = new Size(contentPanel.Width, 70);
+
+                                    foreach (Control btn in btnPanel.Controls)
+                                    {
+                                        if (btn is Button)
+                                        {
+                                            if (btn.Text.Contains("СОХРАНИТЬ"))
+                                                btn.Location = new Point(contentPanel.Width - 400, 10);
+                                            else if (btn.Text.Contains("ОБНОВИТЬ"))
+                                                btn.Location = new Point(contentPanel.Width - 270, 10);
+                                        }
                                     }
                                 }
                             }
