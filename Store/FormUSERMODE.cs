@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Drawing.Drawing2D;
 using System.IO;
+using Store.Kursovaya1DataSetTableAdapters;
 
 namespace Store
 {
@@ -164,7 +165,72 @@ namespace Store
         #endregion
 
         #region Секции интерфейса
+        private void RateGame_Click(object sender, EventArgs e)
+        {
+            Button btn = sender as Button;
+            if (btn == null || btn.Tag == null) return;
 
+            Panel detailsPanel = btn.Parent as Panel;
+            ComboBox ratingComboBox = detailsPanel.Controls["ratingComboBox"] as ComboBox;
+
+            if (ratingComboBox.SelectedItem == null)
+            {
+                MessageBox.Show("Пожалуйста, выберите оценку от 1 до 5 перед тем, как голосовать.",
+                    "Внимание", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            int gameId = (int)btn.Tag;
+            int score = int.Parse(ratingComboBox.SelectedItem.ToString());
+
+            try
+            {
+                // Ищем, есть ли уже оценка от этого пользователя (учитываем название столбца id_users)
+                DataRow[] existingRating = kursovaya1DataSet.Ratings.Select($"id_game = {gameId} AND id_users = {userIDint}");
+
+                if (existingRating.Length > 0)
+                {
+                    // Обновляем существующую оценку
+                    existingRating[0]["Overall_mark"] = score;
+                }
+                else
+                {
+                    // Создаем новую запись
+                    DataRow newRating = kursovaya1DataSet.Ratings.NewRow();
+                    newRating["id_game"] = gameId;
+                    newRating["id_users"] = userIDint;
+                    newRating["Overall_mark"] = score;
+                    kursovaya1DataSet.Ratings.Rows.Add(newRating);
+                }
+
+                // Сохраняем изменения в базу данных SQL
+                ratingsTableAdapter.Update(kursovaya1DataSet.Ratings);
+
+                // Оповещаем пользователя
+                MessageBox.Show("Ваша оценка успешно сохранена!", "Спасибо за отзыв",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Обновляем интерфейс, чтобы сразу пересчитался средний рейтинг
+                Panel homePanel = contentPanel.Controls["panelHome"] as Panel;
+                if (homePanel != null)
+                {
+                    Panel leftColumn = homePanel.Controls.OfType<Panel>().FirstOrDefault(p => p.Location.X == 50);
+                    if (leftColumn != null)
+                    {
+                        DataGridView dgvGames = leftColumn.Controls["dgvGames"] as DataGridView;
+                        if (dgvGames != null)
+                        {
+                            UpdateGameDetails(dgvGames);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Произошла ошибка при сохранении оценки: {ex.Message}",
+                    "Ошибка базы данных", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
         private void CreateHomeSection()
         {
             Panel homePanel = new Panel
@@ -225,6 +291,7 @@ namespace Store
             searchPanel.Controls.Add(searchButton);
             homePanel.Controls.Add(searchPanel);
 
+            // Левая колонка для таблицы (её ширина вычисляется динамически!)
             Panel leftColumn = new Panel
             {
                 Location = new Point(50, 150),
@@ -243,11 +310,13 @@ namespace Store
             };
             leftColumn.Controls.Add(gamesListLabel);
 
+            // Настройка DataGridView
             DataGridView dgvGames = new DataGridView
             {
+
                 Name = "dgvGames",
                 Location = new Point(0, 40),
-                Size = new Size(leftColumn.Width, leftColumn.Height - 40),
+                Size = new Size(leftColumn.Width, leftColumn.Height - 40), // Таблица заполняет всю левую панель
                 BackgroundColor = darkPanel,
                 ForeColor = textLight,
                 GridColor = Color.FromArgb(60, 60, 60),
@@ -256,8 +325,35 @@ namespace Store
                 AllowUserToAddRows = false,
                 AllowUserToDeleteRows = false,
                 ReadOnly = true,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, // Важно! Режим заполнения
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
+
+            };
+            dgvGames.RowTemplate.Height = 35; // Делает строки таблицы выше и просторнее
+            dgvGames.AllowUserToResizeColumns = false;
+            dgvGames.AllowUserToResizeRows = false;
+            dgvGames.AllowUserToOrderColumns = false;
+            dgvGames.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvGames.MultiSelect = false;
+
+            // Обработчик для всплывающего окна при наведении на жанр
+            dgvGames.CellToolTipTextNeeded += (s, e) =>
+            {
+                if (e.RowIndex >= 0 && e.ColumnIndex == dgvGames.Columns["Genre_id"].Index)
+                {
+                    var cellValue = dgvGames[e.ColumnIndex, e.RowIndex].Value;
+                    if (cellValue != null && cellValue != DBNull.Value)
+                    {
+                        int genreId = Convert.ToInt32(cellValue);
+                        DataRow[] genreRows = kursovaya1DataSet.Genres.Select($"id_genre = {genreId}");
+
+                        if (genreRows.Length > 0)
+                        {
+                            string genreDescription = genreRows[0][2].ToString();
+                            e.ToolTipText = $"Описание жанра:\n{genreDescription}";
+                        }
+                    }
+                }
             };
 
             dgvGames.DefaultCellStyle.BackColor = Color.FromArgb(40, 40, 40);
@@ -273,12 +369,13 @@ namespace Store
             dgvGames.AutoGenerateColumns = false;
             dgvGames.Columns.Clear();
 
+            // Создаем колонки и СРАЗУ задаем им FillWeight (пропорции ширины)
             DataGridViewTextBoxColumn colId = new DataGridViewTextBoxColumn
             {
                 Name = "id_game",
                 HeaderText = "ID",
                 DataPropertyName = "id_game",
-                Width = 50,
+                FillWeight = 10, // 10% от ширины
                 ReadOnly = true
             };
             dgvGames.Columns.Add(colId);
@@ -288,7 +385,7 @@ namespace Store
                 Name = "name_game",
                 HeaderText = "Название игры",
                 DataPropertyName = "name_game",
-                Width = 200,
+                FillWeight = 35, // 35% от ширины
                 ReadOnly = true
             };
             dgvGames.Columns.Add(colName);
@@ -298,7 +395,7 @@ namespace Store
                 Name = "price",
                 HeaderText = "Цена",
                 DataPropertyName = "price",
-                Width = 100,
+                FillWeight = 15, // 15% от ширины
                 ReadOnly = true,
                 DefaultCellStyle = new DataGridViewCellStyle
                 {
@@ -308,21 +405,39 @@ namespace Store
             };
             dgvGames.Columns.Add(colPrice);
 
+            DataGridViewComboBoxColumn colGenre = new DataGridViewComboBoxColumn
+            {
+                Name = "Genre_id",
+                HeaderText = "Жанр",
+                DataPropertyName = "Genre_id",
+                DataSource = kursovaya1DataSet.Genres,
+                DisplayMember = "Name_genre",
+                ValueMember = "id_genre",
+                FillWeight = 25, // 25% от ширины
+                DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing,
+                FlatStyle = FlatStyle.Flat
+            };
+            dgvGames.Columns.Add(colGenre);
+
             DataGridViewTextBoxColumn colRelease = new DataGridViewTextBoxColumn
             {
                 Name = "Year_release",
                 HeaderText = "Дата выхода",
                 DataPropertyName = "Year_release",
-                Width = 120,
+                FillWeight = 15, // 15% от ширины
                 ReadOnly = true
             };
             dgvGames.Columns.Add(colRelease);
 
             dgvGames.DataSource = gamesBindingSource;
 
+            // Подписка на изменение выбора строки
+            dgvGames.SelectionChanged += (s, e) => UpdateGameDetails(dgvGames);
+
             leftColumn.Controls.Add(dgvGames);
             homePanel.Controls.Add(leftColumn);
 
+            // Правая колонка для деталей
             Panel rightColumn = new Panel
             {
                 Location = new Point(50 + leftColumn.Width + 50, 150),
@@ -386,18 +501,18 @@ namespace Store
 
             Label ratingLabel = new Label
             {
-                Location = new Point(20, 370),
-                Size = new Size(200, 30),
+                Location = new Point(20, 360),
+                Size = new Size(300, 30),
                 Font = new Font("Segoe UI", 14),
                 ForeColor = accentOrange,
-                Text = "Рейтинг: N/A",
+                Text = "Средний рейтинг: N/A",
                 Name = "ratingLabel"
             };
             detailsPanel.Controls.Add(ratingLabel);
 
             Label releaseDateLabel = new Label
             {
-                Location = new Point(20, 410),
+                Location = new Point(20, 390),
                 Size = new Size(300, 30),
                 Font = new Font("Segoe UI", 12),
                 ForeColor = textGray,
@@ -406,15 +521,47 @@ namespace Store
             };
             detailsPanel.Controls.Add(releaseDateLabel);
 
+            // --- ЭЛЕМЕНТЫ ДЛЯ ОЦЕНКИ ---
+            ComboBox ratingComboBox = new ComboBox
+            {
+                Name = "ratingComboBox",
+                Location = new Point(20, 430),
+                Size = new Size(50, 30),
+                DropDownStyle = ComboBoxStyle.DropDownList, // Только выбор из списка
+                Font = new Font("Segoe UI", 12),
+                BackColor = Color.FromArgb(50, 50, 50),
+                ForeColor = textLight,
+                FlatStyle = FlatStyle.Flat
+            };
+            ratingComboBox.Items.AddRange(new object[] { "1", "2", "3", "4", "5" });
+            detailsPanel.Controls.Add(ratingComboBox);
+
+            Button rateBtn = new Button
+            {
+                Name = "rateBtn",
+                Location = new Point(80, 428),
+                Size = new Size(130, 32),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                BackColor = accentOrange,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Text = "ОЦЕНИТЬ ⭐",
+                Enabled = false
+            };
+            rateBtn.FlatAppearance.BorderSize = 0;
+            rateBtn.Click += RateGame_Click; // Привязываем логику
+            detailsPanel.Controls.Add(rateBtn);
+            // ----------------------------------
+
             Button addToCartBtn = new Button
             {
-                Location = new Point(20, 460),
-                Size = new Size(detailsPanel.Width - 40, 60),
+                Location = new Point(20, 475),
+                Size = new Size(detailsPanel.Width - 40, 50),
                 Font = new Font("Segoe UI", 14, FontStyle.Bold),
                 BackColor = accentGreen,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Text = "🛒 ДОБАВИТЬ В КОРЗИНУ",
+                Text = "🛒 В КОРЗИНУ",
                 Enabled = false,
                 Name = "addToCartBtn"
             };
@@ -423,7 +570,7 @@ namespace Store
 
             Button buyNowBtn = new Button
             {
-                Location = new Point(20, 530),
+                Location = new Point(20, 535),
                 Size = new Size(detailsPanel.Width - 40, 30),
                 Font = new Font("Segoe UI", 12, FontStyle.Bold),
                 BackColor = accentBlue,
@@ -442,11 +589,9 @@ namespace Store
             rightColumn.Controls.Add(detailsPanel);
             homePanel.Controls.Add(rightColumn);
 
-            dgvGames.SelectionChanged += (s, e) => UpdateGameDetails(dgvGames);
-
             contentPanel.Controls.Add(homePanel);
         }
-
+        
         private void CreateLibrarySection()
         {
             Panel libraryPanel = new Panel
@@ -486,7 +631,11 @@ namespace Store
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
             };
-
+            dgvLibrary.AllowUserToResizeColumns = false;
+            dgvLibrary.AllowUserToResizeRows = false;
+            dgvLibrary.AllowUserToOrderColumns = false;
+            dgvLibrary.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvLibrary.MultiSelect = false;
             dgvLibrary.DefaultCellStyle.BackColor = Color.FromArgb(40, 40, 40);
             dgvLibrary.DefaultCellStyle.ForeColor = textLight;
             dgvLibrary.DefaultCellStyle.SelectionBackColor = accentBlue;
@@ -656,7 +805,11 @@ namespace Store
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
             };
-
+            dgvCart.AllowUserToResizeColumns = false;
+            dgvCart.AllowUserToResizeRows = false;
+            dgvCart.AllowUserToOrderColumns = false;
+            dgvCart.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvCart.MultiSelect = false;
             dgvCart.DefaultCellStyle.BackColor = Color.FromArgb(40, 40, 40);
             dgvCart.DefaultCellStyle.ForeColor = textLight;
             dgvCart.DefaultCellStyle.SelectionBackColor = accentOrange;
@@ -1059,6 +1212,8 @@ namespace Store
 
                 if (cartTableAdapter != null)
                     cartTableAdapter.Fill(kursovaya1DataSet.Cart);
+                if (genresTableAdapter != null)
+                    genresTableAdapter.Fill(kursovaya1DataSet.Genres);
 
                 // Проверка загрузки данных
                 Console.WriteLine($"Загружено игр: {kursovaya1DataSet.Games.Rows.Count}");
@@ -1404,8 +1559,12 @@ namespace Store
                             Label priceLabel = detailsPanel.Controls["priceLabel"] as Label;
                             Label ratingLabel = detailsPanel.Controls["ratingLabel"] as Label;
                             Label releaseDateLabel = detailsPanel.Controls["releaseDateLabel"] as Label;
+
+                            // Кнопки и списки
                             Button addToCartBtn = detailsPanel.Controls["addToCartBtn"] as Button;
                             Button buyNowBtn = detailsPanel.Controls["buyNowBtn"] as Button;
+                            ComboBox ratingComboBox = detailsPanel.Controls["ratingComboBox"] as ComboBox;
+                            Button rateBtn = detailsPanel.Controls["rateBtn"] as Button;
 
                             DataGridViewRow row = dgv.SelectedRows[0];
 
@@ -1414,14 +1573,33 @@ namespace Store
                             decimal price = Convert.ToDecimal(row.Cells["price"].Value ?? 0);
                             string releaseDate = row.Cells["Year_release"].Value?.ToString() ?? "Не указана";
 
-                            double rating = GetGameRating(gameId);
-
                             LoadGameImage(gameId, gamePictureBox);
 
                             selectedGameLabel.Text = gameName;
                             priceLabel.Text = $"Цена: {price:N2} ₽";
-                            ratingLabel.Text = $"Рейтинг: {rating:F1} ★";
                             releaseDateLabel.Text = $"Дата выхода: {releaseDate}";
+
+                            // Высчитываем средний рейтинг
+                            double rating = GetGameRating(gameId);
+                            ratingLabel.Text = rating > 0 ? $"Средний рейтинг: {rating:F1} ★" : "Рейтинг: Нет оценок";
+
+                            // Проверяем, ставил ли ТЕКУЩИЙ пользователь оценку
+                            DataRow[] userRatingRows = kursovaya1DataSet.Ratings.Select($"id_game = {gameId} AND id_users = {userIDint}");
+                            if (userRatingRows.Length > 0)
+                            {
+                                int userScore = Convert.ToInt32(userRatingRows[0]["Overall_mark"]);
+                                ratingComboBox.SelectedItem = userScore.ToString();
+                                rateBtn.Text = "ИЗМЕНИТЬ";
+                            }
+                            else
+                            {
+                                ratingComboBox.SelectedIndex = -1; // Сбрасываем выбор
+                                rateBtn.Text = "ОЦЕНИТЬ ⭐";
+                            }
+
+                            // ВКЛЮЧАЕМ КНОПКИ и передаем им ID игры
+                            rateBtn.Tag = gameId;
+                            rateBtn.Enabled = true;
 
                             addToCartBtn.Tag = gameId;
                             addToCartBtn.Enabled = true;
@@ -1433,7 +1611,6 @@ namespace Store
                 }
             }
         }
-
         private void LoadGameImage(int gameId, PictureBox pictureBox)
         {
             try
@@ -1913,74 +2090,104 @@ namespace Store
                     if (control is Panel searchPanel && searchPanel.Location.Y == 80)
                     {
                         searchPanel.Width = panel.Width - 100;
-
                         TextBox searchBox = searchPanel.Controls.OfType<TextBox>().FirstOrDefault();
-                        if (searchBox != null)
-                            searchBox.Width = searchPanel.Width - 120;
-
+                        if (searchBox != null) searchBox.Width = searchPanel.Width - 120;
                         Button searchBtn = searchPanel.Controls.OfType<Button>().FirstOrDefault();
-                        if (searchBtn != null)
-                            searchBtn.Location = new Point(searchPanel.Width - 100, 5);
+                        if (searchBtn != null) searchBtn.Location = new Point(searchPanel.Width - 100, 5);
+                    }
+                    else if (control is Panel leftCol && control.Location.X == 50 && control.Location.Y == 150)
+                    {
+                        leftCol.Size = new Size((panel.Width - 150) / 2, panel.Height - 200);
+                        DataGridView dgv = leftCol.Controls["dgvGames"] as DataGridView;
+                        if (dgv != null) dgv.Size = new Size(leftCol.Width, leftCol.Height - 40);
+                    }
+                    else if (control is Panel rightCol && control.Location.X > 50 && control.Location.Y == 150)
+                    {
+                        int leftWidth = (panel.Width - 150) / 2;
+                        rightCol.Location = new Point(50 + leftWidth + 50, 150);
+                        rightCol.Size = new Size(leftWidth, panel.Height - 200);
+
+                        Panel detailsPanel = rightCol.Controls["detailsPanel"] as Panel;
+                        if (detailsPanel != null)
+                        {
+                            detailsPanel.Size = new Size(rightCol.Width, rightCol.Height - 40);
+                            foreach (Control c in detailsPanel.Controls)
+                            {
+                                if (c is PictureBox || c is Label || (c is Button && c.Name != "rateBtn"))
+                                    c.Width = detailsPanel.Width - 40;
+                            }
+                        }
                     }
                 }
             }
             else if (panel.Name == "panelCart")
             {
-                foreach (Control control in panel.Controls)
+                // Ищем элементы КОРЗИНЫ по их именам (Name)
+                DataGridView dgvCart = panel.Controls["dgvCart"] as DataGridView;
+                Panel totalPanel = panel.Controls["totalPanel"] as Panel;
+                Panel buttonPanel = panel.Controls["buttonPanel"] as Panel;
+
+                if (dgvCart != null)
                 {
-                    if (control is DataGridView dgv && dgv.Location.Y == 80)
-                    {
-                        dgv.Width = panel.Width - 100;
-                        dgv.Height = panel.Height - 250;
-                    }
-                    else if (control is Panel totalPanel && totalPanel.Location.Y == panel.Height - 160)
-                    {
-                        totalPanel.Width = panel.Width - 100;
-                        totalPanel.Location = new Point(50, panel.Height - 160);
-                    }
-                    else if (control is Panel buttonPanel && buttonPanel.Location.Y == panel.Height - 90)
-                    {
-                        buttonPanel.Width = panel.Width - 100;
-                        buttonPanel.Location = new Point(50, panel.Height - 90);
+                    dgvCart.Width = panel.Width - 100;
+                    // Оставляем 260 пикселей снизу для панелей с итогами и кнопками
+                    dgvCart.Height = panel.Height - 280;
+                }
 
-                        Button checkoutBtn = buttonPanel.Controls["checkoutBtn"] as Button;
-                        if (checkoutBtn != null)
-                            checkoutBtn.Location = new Point(buttonPanel.Width - 230, 10);
+                if (totalPanel != null)
+                {
+                    totalPanel.Width = panel.Width - 100;
+                    // Прижимаем к низу, учитывая высоту кнопок
+                    totalPanel.Location = new Point(50, panel.Height - 160);
+                }
 
-                        Button clearBtn = buttonPanel.Controls["clearBtn"] as Button;
-                        if (clearBtn != null)
-                            clearBtn.Location = new Point(buttonPanel.Width - 460, 10);
-                    }
+                if (buttonPanel != null)
+                {
+                    buttonPanel.Width = panel.Width - 100;
+                    // Самый низ
+                    buttonPanel.Location = new Point(50, panel.Height - 90);
+
+                    // Располагаем кнопки КУПИТЬ и ОЧИСТИТЬ внутри панели относительно правой стороны
+                    Button checkoutBtn = buttonPanel.Controls["checkoutBtn"] as Button;
+                    if (checkoutBtn != null)
+                        checkoutBtn.Location = new Point(buttonPanel.Width - 230, 10);
+
+                    Button clearBtn = buttonPanel.Controls["clearBtn"] as Button;
+                    if (clearBtn != null)
+                        clearBtn.Location = new Point(buttonPanel.Width - 460, 10);
                 }
             }
             else if (panel.Name == "panelLibrary")
             {
-                foreach (Control control in panel.Controls)
+                DataGridView dgv = panel.Controls["dgvLibrary"] as DataGridView;
+                Panel infoPanel = panel.Controls.OfType<Panel>().FirstOrDefault(p => p.Height == 50);
+
+                if (dgv != null)
                 {
-                    if (control is DataGridView dgv && dgv.Location.Y == 80)
-                    {
-                        dgv.Width = panel.Width - 100;
-                        dgv.Height = panel.Height - 180;
-                    }
-                    else if (control is Panel infoPanel && infoPanel.Location.Y == panel.Height - 90)
-                    {
-                        infoPanel.Width = panel.Width - 100;
-                        infoPanel.Location = new Point(50, panel.Height - 90);
-                    }
+                    dgv.Width = panel.Width - 100;
+                    dgv.Height = panel.Height - 180;
+                }
+                if (infoPanel != null)
+                {
+                    infoPanel.Width = panel.Width - 100;
+                    infoPanel.Location = new Point(50, panel.Height - 90);
                 }
             }
             else if (panel.Name == "panelSettings")
             {
                 foreach (Control control in panel.Controls)
                 {
-                    if (control is Panel card)
-                    {
-                        card.Width = panel.Width - 100;
-                    }
+                    if (control is Panel card) card.Width = panel.Width - 100;
                 }
             }
         }
-
         #endregion
+
+        private void FormUSERMODE_Load(object sender, EventArgs e)
+        {
+            // TODO: данная строка кода позволяет загрузить данные в таблицу "kursovaya1DataSet.Genres". При необходимости она может быть перемещена или удалена.
+            this.genresTableAdapter.Fill(this.kursovaya1DataSet.Genres);
+
+        }
     }
 }

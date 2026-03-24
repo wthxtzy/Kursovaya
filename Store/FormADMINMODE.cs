@@ -1,14 +1,20 @@
-﻿using System;
+﻿using Store.Kursovaya1DataSetTableAdapters;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace Store
 {
@@ -30,6 +36,8 @@ namespace Store
         public FormADMINMODE(string adminLogin, string userid)
         {
             InitializeComponent();
+            this.KeyPreview = true;
+            this.KeyDown += FormADMINMODE_KeyDown;
             currentAdminLogin = adminLogin;
             adminID = userid;
 
@@ -209,12 +217,17 @@ namespace Store
             dgvGames.Columns.Add(colName);
 
             // Колонка жанра
-            DataGridViewTextBoxColumn colGenre = new DataGridViewTextBoxColumn
+            DataGridViewComboBoxColumn colGenre = new DataGridViewComboBoxColumn
             {
                 Name = "Genre_id",
                 HeaderText = "Жанр",
-                DataPropertyName = "Genre_id",
-                Width = 100
+                DataPropertyName = "Genre_id",               // Связь с таблицей Games (куда сохраняем ID)
+                DataSource = kursovaya1DataSet.Genres,       // Откуда берем список жанров
+                DisplayMember = "Name_genre",                // Что ПОКАЗЫВАЕМ (текст, индекс 1)
+                ValueMember = "id_genre",                    // Что СОХРАНЯЕМ в базу (ID, индекс 0)
+                Width = 100,
+                DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing, // Чтобы выглядело как обычный текст
+                FlatStyle = FlatStyle.Flat
             };
             dgvGames.Columns.Add(colGenre);
 
@@ -245,7 +258,34 @@ namespace Store
 
             // Привязываем данные
             dgvGames.DataSource = gamesBindingSource;
+            dgvGames.CellToolTipTextNeeded += (s, e) =>
+            {
+                // Проверяем, что навели именно на данные (не на заголовок таблицы) 
+                // и именно на колонку жанра
+                if (e.RowIndex >= 0 && e.ColumnIndex == dgvGames.Columns["Genre_id"].Index)
+                {
+                    // Получаем ID жанра из ячейки
+                    var cellValue = dgvGames[e.ColumnIndex, e.RowIndex].Value;
 
+                    if (cellValue != null && cellValue != DBNull.Value)
+                    {
+                        int genreId = Convert.ToInt32(cellValue);
+
+                        // Ищем строку с этим жанром в таблице Genres
+                        DataRow[] genreRows = kursovaya1DataSet.Genres.Select($"id_genre = {genreId}");
+
+                        if (genreRows.Length > 0)
+                        {
+                            // Берем описание. Как ты и сказал, это столбец с индексом 2 (третий по счету).
+                            // Если у столбца есть имя в БД (например, "Description"), лучше писать genreRows[0]["Description"].ToString()
+                            string genreDescription = genreRows[0][2].ToString();
+
+                            // Формируем красивый текст для подсказки
+                            e.ToolTipText = $"Описание жанра:\n{genreDescription}";
+                        }
+                    }
+                }
+            };
             leftPanel.Controls.Add(dgvGames);
 
             // Панель для изображения (справа)
@@ -841,6 +881,7 @@ namespace Store
                 libraryTableAdapter.Fill(kursovaya1DataSet.Library);
                 ratingsTableAdapter.Fill(kursovaya1DataSet.Ratings);
                 reviewsTableAdapter.Fill(kursovaya1DataSet.Reviews);
+                genresTableAdapter.Fill(kursovaya1DataSet.Genres);
 
                 UpdateLibraryInfo();
             }
@@ -980,7 +1021,400 @@ namespace Store
                 e.Graphics.FillRectangle(brush, this.ClientRectangle);
             }
         }
+        // =========================================================================
+        // СЕКРЕТНЫЙ РАЗДЕЛ: ИНТЕГРАЦИЯ qBittorrent WebUI API
+        // =========================================================================
 
+        public class FormTorrentClient : Form
+        {
+            private Color darkBg = Color.FromArgb(21, 25, 28);
+            private Color darkPanel = Color.FromArgb(30, 30, 30);
+            private Color accentBlue = Color.FromArgb(33, 150, 243);
+            private Color accentGreen = Color.FromArgb(76, 175, 80);
+            private Color accentRed = Color.FromArgb(244, 67, 54);
+            private Color textLight = Color.FromArgb(251, 251, 252);
+
+            private DataGridView dgvTorrents;
+            private System.Windows.Forms.Timer updateTimer;
+            private QBittorrentAPI api;
+
+            // Настройки подключения (Укажи свои данные от WebUI qBittorrent)
+            private string qbUrl = "http://127.0.0.1:8080";
+            private string qbUser = "admin";
+            private string qbPass = "adminadmin";
+
+            public FormTorrentClient()
+            {
+                this.Text = "Секретный терминал загрузок (qBittorrent)";
+                this.Size = new Size(1000, 600);
+                this.StartPosition = FormStartPosition.CenterScreen;
+                this.BackColor = darkBg;
+                this.FormBorderStyle = FormBorderStyle.FixedDialog;
+                this.MaximizeBox = false;
+
+                api = new QBittorrentAPI(qbUrl);
+                InitializeUI();
+
+                updateTimer = new System.Windows.Forms.Timer();
+                updateTimer.Interval = 1500; // Обновление каждые 1.5 секунды
+                updateTimer.Tick += UpdateTimer_Tick;
+
+                ConnectToApi();
+            }
+
+            private async void ConnectToApi()
+            {
+                bool connected = await api.LoginAsync(qbUser, qbPass);
+                if (connected)
+                {
+                    updateTimer.Start();
+                }
+                else
+                {
+                    MessageBox.Show("Не удалось подключиться к qBittorrent WebUI.\nПроверьте, запущен ли клиент и включен ли WebUI в настройках.", "Ошибка подключения", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+
+            private void InitializeUI()
+            {
+                // Верхняя панель управления
+                Panel topPanel = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = darkPanel };
+                this.Controls.Add(topPanel);
+
+                Label titleLabel = new Label
+                {
+                    Text = "⚡ qBittorrent Remote Manager",
+                    ForeColor = accentBlue,
+                    Font = new Font("Segoe UI", 16, FontStyle.Bold),
+                    Location = new Point(15, 15),
+                    AutoSize = true
+                };
+                topPanel.Controls.Add(titleLabel);
+
+                Button btnAdd = CreateBtn("📁 Загрузить .torrent", accentBlue, new Point(800, 15));
+                btnAdd.Click += BtnAdd_Click;
+                topPanel.Controls.Add(btnAdd);
+
+                // Таблица торрентов
+                dgvTorrents = new DataGridView
+                {
+                    Location = new Point(15, 75),
+                    Size = new Size(950, 420),
+                    BackgroundColor = darkBg,
+                    ForeColor = textLight,
+                    BorderStyle = BorderStyle.None,
+                    RowHeadersVisible = false,
+                    AllowUserToAddRows = false,
+                    AllowUserToDeleteRows = false,
+                    ReadOnly = true,
+                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                    EnableHeadersVisualStyles = false,
+                    GridColor = Color.FromArgb(50, 50, 50)
+                };
+
+                dgvTorrents.DefaultCellStyle.BackColor = Color.FromArgb(40, 40, 40);
+                dgvTorrents.DefaultCellStyle.SelectionBackColor = Color.FromArgb(60, 60, 60);
+                dgvTorrents.DefaultCellStyle.Font = new Font("Segoe UI", 10);
+                dgvTorrents.ColumnHeadersDefaultCellStyle.BackColor = darkPanel;
+                dgvTorrents.ColumnHeadersDefaultCellStyle.ForeColor = textLight;
+                dgvTorrents.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+
+                // Добавляем колонки
+                dgvTorrents.Columns.Add("hash", "Hash");
+                dgvTorrents.Columns["hash"].Visible = false;
+                dgvTorrents.Columns.Add("name", "Название");
+                dgvTorrents.Columns["name"].FillWeight = 40;
+                dgvTorrents.Columns.Add("size", "Размер");
+                dgvTorrents.Columns["size"].FillWeight = 15;
+                dgvTorrents.Columns.Add("state", "Статус");
+                dgvTorrents.Columns["state"].FillWeight = 15;
+                dgvTorrents.Columns.Add("progress", "Прогресс"); // Эта колонка будет отрисовываться кастомно
+                dgvTorrents.Columns["progress"].FillWeight = 25;
+                dgvTorrents.Columns.Add("dlspeed", "Скорость");
+                dgvTorrents.Columns["dlspeed"].FillWeight = 15;
+
+                // Кастомная отрисовка прогресс-бара
+                dgvTorrents.CellPainting += DgvTorrents_CellPainting;
+
+                this.Controls.Add(dgvTorrents);
+
+                // Нижняя панель с кнопками управления
+                Panel bottomPanel = new Panel { Dock = DockStyle.Bottom, Height = 60, BackColor = darkPanel };
+                this.Controls.Add(bottomPanel);
+
+                Button btnResume = CreateBtn("▶ Продолжить", accentGreen, new Point(15, 10));
+                btnResume.Click += async (s, e) => await PerformAction("resume");
+                bottomPanel.Controls.Add(btnResume);
+
+                Button btnPause = CreateBtn("⏸ Пауза", Color.Orange, new Point(180, 10));
+                btnPause.Click += async (s, e) => await PerformAction("pause");
+                bottomPanel.Controls.Add(btnPause);
+
+                Button btnDelete = CreateBtn("🗑 Удалить", accentRed, new Point(345, 10));
+                btnDelete.Click += async (s, e) => await PerformAction("delete");
+                bottomPanel.Controls.Add(btnDelete);
+            }
+
+            private Button CreateBtn(string text, Color color, Point loc)
+            {
+                Button btn = new Button
+                {
+                    Text = text,
+                    Location = loc,
+                    Size = new Size(150, 35),
+                    BackColor = color,
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9, FontStyle.Bold)
+                };
+                btn.FlatAppearance.BorderSize = 0;
+                return btn;
+            }
+
+            private async void BtnAdd_Click(object sender, EventArgs e)
+            {
+                using (OpenFileDialog ofd = new OpenFileDialog { Filter = "Torrent Files|*.torrent" })
+                {
+                    if (ofd.ShowDialog() == DialogResult.OK)
+                    {
+                        bool success = await api.AddTorrentAsync(ofd.FileName);
+                        if (success) MessageBox.Show("Торрент успешно добавлен!", "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        else MessageBox.Show("Ошибка при добавлении торрента.", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+
+            private async Task PerformAction(string action)
+            {
+                if (dgvTorrents.SelectedRows.Count == 0)
+                {
+                    MessageBox.Show("Сначала выберите торрент из списка!", "Внимание", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string hash = dgvTorrents.SelectedRows[0].Cells["hash"].Value.ToString();
+                bool success = false;
+                switch (action)
+                {
+                    case "pause": success = await api.PauseTorrentAsync(hash); break;
+                    case "resume": success = await api.ResumeTorrentAsync(hash); break;
+                    case "delete":
+                        if (MessageBox.Show("Удалить этот торрент?", "Подтверждение", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                            success = await api.DeleteTorrentAsync(hash);
+                        break;
+                }
+                if (success) await RefreshTorrents();
+            }
+
+            private async void UpdateTimer_Tick(object sender, EventArgs e)
+            {
+                await RefreshTorrents();
+            }
+
+            private async Task RefreshTorrents()
+            {
+                try
+                {
+                    var torrents = await api.GetTorrentsAsync();
+
+                    // Сохраняем HASH выделенного торрента (надежнее, чем просто индекс строки)
+                    string selectedHash = dgvTorrents.SelectedRows.Count > 0
+                        ? dgvTorrents.SelectedRows[0].Cells["hash"].Value?.ToString()
+                        : null;
+
+                    dgvTorrents.Rows.Clear();
+                    foreach (var t in torrents)
+                    {
+                        dgvTorrents.Rows.Add(
+                            t.hash,
+                            t.name,
+                            FormatBytes(t.size),
+                            TranslateState(t.state),
+                            t.progress * 100,
+                            FormatSpeed(t.dlspeed)
+                        );
+                    }
+
+                    // Восстанавливаем выделение по HASH, чтобы кнопки всегда срабатывали
+                    if (!string.IsNullOrEmpty(selectedHash))
+                    {
+                        foreach (DataGridViewRow row in dgvTorrents.Rows)
+                        {
+                            if (row.Cells["hash"].Value?.ToString() == selectedHash)
+                            {
+                                row.Selected = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch { /* Игнорируем ошибки при потере сети */ }
+            }
+
+            // Кастомная отрисовка прогресс-бара прямо в ячейке DataGridView
+            private void DgvTorrents_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
+            {
+                if (e.RowIndex >= 0 && e.ColumnIndex == dgvTorrents.Columns["progress"].Index)
+                {
+                    e.PaintBackground(e.CellBounds, true);
+
+                    double progress = Convert.ToDouble(e.Value);
+                    int width = (int)((progress / 100.0) * e.CellBounds.Width);
+
+                    Rectangle progressRect = new Rectangle(e.CellBounds.X, e.CellBounds.Y + 5, width, e.CellBounds.Height - 10);
+                    e.Graphics.FillRectangle(new SolidBrush(accentGreen), progressRect);
+
+                    string percentText = progress.ToString("0.0") + " %";
+                    TextRenderer.DrawText(e.Graphics, percentText, e.CellStyle.Font, e.CellBounds, textLight, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+
+                    e.Handled = true;
+                }
+            }
+
+            // Вспомогательные методы форматирования
+            private string FormatBytes(long bytes)
+            {
+                string[] suf = { "B", "KB", "MB", "GB", "TB" };
+                if (bytes == 0) return "0 B";
+                int place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
+                double num = Math.Round(bytes / Math.Pow(1024, place), 1);
+                return $"{num} {suf[place]}";
+            }
+
+            private string FormatSpeed(long bytes) => bytes > 0 ? FormatBytes(bytes) + "/s" : "0 B/s";
+
+            private string TranslateState(string state)
+            {
+                switch (state.ToLower())
+                {
+                    case "downloading": return "Скачивается";
+                    case "stalleddl": return "Ожидание";
+                    case "pauseddl":
+                    case "stoppeddl": return "На паузе (Загрузка)"; // Поддержка новых версий
+                    case "pausedup":
+                    case "stoppedup": return "На паузе (Раздача)"; // Поддержка новых версий
+                    case "uploading": return "Раздается";
+                    case "stalledup": return "Раздача (Простой)";
+                    case "checkingup":
+                    case "checkingdl": return "Проверка...";
+                    case "queueddl": return "В очереди (Загрузка)";
+                    case "queuedup": return "В очереди (Раздача)";
+                    case "error": return "Ошибка";
+                    default: return state;
+                }
+            }
+
+            protected override void OnFormClosing(FormClosingEventArgs e)
+            {
+                updateTimer.Stop();
+                updateTimer.Dispose();
+                base.OnFormClosing(e);
+            }
+        }
+
+        // Класс для взаимодействия с API qBittorrent WebUI
+        // Класс для взаимодействия с API qBittorrent WebUI
+        public class QBittorrentAPI
+        {
+            private HttpClient client;
+            private string baseUrl;
+
+            public QBittorrentAPI(string url)
+            {
+                baseUrl = url;
+                var handler = new HttpClientHandler { UseCookies = true };
+                client = new HttpClient(handler);
+            }
+
+            public async Task<bool> LoginAsync(string username, string password)
+            {
+                var content = new FormUrlEncodedContent(new[]
+                {
+                new KeyValuePair<string, string>("username", username),
+                new KeyValuePair<string, string>("password", password)
+            });
+
+                var response = await client.PostAsync($"{baseUrl}/api/v2/auth/login", content);
+                return response.IsSuccessStatusCode && await response.Content.ReadAsStringAsync() == "Ok.";
+            }
+
+            public async Task<List<TorrentInfo>> GetTorrentsAsync()
+            {
+                var response = await client.GetAsync($"{baseUrl}/api/v2/torrents/info");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    return JsonSerializer.Deserialize<List<TorrentInfo>>(json) ?? new List<TorrentInfo>();
+                }
+                return new List<TorrentInfo>();
+            }
+
+            public async Task<bool> AddTorrentAsync(string filePath)
+            {
+                using (var content = new MultipartFormDataContent())
+                using (var fileStream = new System.IO.FileStream(filePath, System.IO.FileMode.Open, System.IO.FileAccess.Read))
+                using (var streamContent = new StreamContent(fileStream))
+                {
+                    streamContent.Headers.ContentType = MediaTypeHeaderValue.Parse("application/x-bittorrent");
+                    content.Add(streamContent, "torrents", System.IO.Path.GetFileName(filePath));
+
+                    var response = await client.PostAsync($"{baseUrl}/api/v2/torrents/add", content);
+                    return response.IsSuccessStatusCode;
+                }
+            }
+
+            // Обновленные методы Паузы, Продолжения и Удаления
+            public async Task<bool> PauseTorrentAsync(string hash)
+            {
+                // Для qBittorrent 4.5.0+ используется "stop"
+                var content = new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("hashes", hash) });
+                var response = await client.PostAsync($"{baseUrl}/api/v2/torrents/stop", content);
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // Если версия старая, используем "pause"
+                    content = new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("hashes", hash) });
+                    response = await client.PostAsync($"{baseUrl}/api/v2/torrents/pause", content);
+                }
+                return response.IsSuccessStatusCode;
+            }
+
+            public async Task<bool> ResumeTorrentAsync(string hash)
+            {
+                // Для qBittorrent 4.5.0+ используется "start"
+                var content = new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("hashes", hash) });
+                var response = await client.PostAsync($"{baseUrl}/api/v2/torrents/start", content);
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    // Если версия старая, используем "resume"
+                    content = new FormUrlEncodedContent(new[] { new KeyValuePair<string, string>("hashes", hash) });
+                    response = await client.PostAsync($"{baseUrl}/api/v2/torrents/resume", content);
+                }
+                return response.IsSuccessStatusCode;
+            }
+
+            public async Task<bool> DeleteTorrentAsync(string hash)
+            {
+                var content = new FormUrlEncodedContent(new[] {
+                new KeyValuePair<string, string>("hashes", hash),
+                new KeyValuePair<string, string>("deleteFiles", "false")
+            });
+                var response = await client.PostAsync($"{baseUrl}/api/v2/torrents/delete", content);
+                return response.IsSuccessStatusCode;
+            }
+
+            public class TorrentInfo
+            {
+                public string hash { get; set; }
+                public string name { get; set; }
+                public long size { get; set; }
+                public double progress { get; set; }
+                public long dlspeed { get; set; }
+                public string state { get; set; }
+            }
+        }
         private void FormADMINMODE_FormClosing(object sender, FormClosingEventArgs e)
         {
             Application.Exit();
@@ -1039,6 +1473,24 @@ namespace Store
                     }
                 }
             }
+        }
+
+        private void FormADMINMODE_KeyDown(object sender, KeyEventArgs e)
+        {
+            // Проверяем нажатие Ctrl + Shift + 8
+            if (e.Control && e.Shift && e.KeyCode == Keys.D8)
+            {
+                // Открываем секретную форму qBittorrent
+                FormTorrentClient torrentForm = new FormTorrentClient();
+                torrentForm.ShowDialog();
+            }
+        }
+
+        private void FormADMINMODE_Load(object sender, EventArgs e)
+        {
+            // TODO: данная строка кода позволяет загрузить данные в таблицу "kursovaya1DataSet.Genres". При необходимости она может быть перемещена или удалена.
+            this.genresTableAdapter.Fill(this.kursovaya1DataSet.Genres);
+
         }
     }
 }

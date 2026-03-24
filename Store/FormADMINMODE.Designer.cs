@@ -41,12 +41,21 @@
             this.libraryTableAdapter = new Store.Kursovaya1DataSetTableAdapters.LibraryTableAdapter();
             this.ratingsTableAdapter = new Store.Kursovaya1DataSetTableAdapters.RatingsTableAdapter();
             this.reviewsTableAdapter = new Store.Kursovaya1DataSetTableAdapters.ReviewsTableAdapter();
+            this.genresBindingSource = new System.Windows.Forms.BindingSource(this.components);
+            this.genresTableAdapter = new Store.Kursovaya1DataSetTableAdapters.GenresTableAdapter();
+            this.tableAdapterManager = new Store.Kursovaya1DataSetTableAdapters.TableAdapterManager();
+            this.genresDataGridView = new System.Windows.Forms.DataGridView();
+            this.dataGridViewTextBoxColumn1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dataGridViewTextBoxColumn2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dataGridViewTextBoxColumn3 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)(this.kursovaya1DataSet)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.gamesBindingSource)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.usersBindingSource)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.libraryBindingSource)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.ratingsBindingSource)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.reviewsBindingSource)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.genresBindingSource)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.genresDataGridView)).BeginInit();
             this.SuspendLayout();
             // 
             // kursovaya1DataSet
@@ -99,16 +108,81 @@
             // 
             this.reviewsTableAdapter.ClearBeforeFill = true;
             // 
+            // genresBindingSource
+            // 
+            this.genresBindingSource.DataMember = "Genres";
+            this.genresBindingSource.DataSource = this.kursovaya1DataSet;
+            // 
+            // genresTableAdapter
+            // 
+            this.genresTableAdapter.ClearBeforeFill = true;
+            // 
+            // tableAdapterManager
+            // 
+            this.tableAdapterManager.BackupDataSetBeforeUpdate = false;
+            this.tableAdapterManager.CartTableAdapter = null;
+            this.tableAdapterManager.GamesTableAdapter = this.gamesTableAdapter;
+            this.tableAdapterManager.GenresTableAdapter = this.genresTableAdapter;
+            this.tableAdapterManager.LibraryTableAdapter = this.libraryTableAdapter;
+            this.tableAdapterManager.RatingsTableAdapter = this.ratingsTableAdapter;
+            this.tableAdapterManager.ReviewsTableAdapter = this.reviewsTableAdapter;
+            this.tableAdapterManager.UpdateOrder = Store.Kursovaya1DataSetTableAdapters.TableAdapterManager.UpdateOrderOption.InsertUpdateDelete;
+            this.tableAdapterManager.UsersTableAdapter = this.usersTableAdapter;
+            // 
+            // genresDataGridView
+            // 
+            this.genresDataGridView.AutoGenerateColumns = false;
+            this.genresDataGridView.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.genresDataGridView.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.dataGridViewTextBoxColumn1,
+            this.dataGridViewTextBoxColumn2,
+            this.dataGridViewTextBoxColumn3});
+            this.genresDataGridView.DataSource = this.genresBindingSource;
+            this.genresDataGridView.Location = new System.Drawing.Point(278, 156);
+            this.genresDataGridView.Name = "genresDataGridView";
+            this.genresDataGridView.RowHeadersWidth = 51;
+            this.genresDataGridView.RowTemplate.Height = 24;
+            this.genresDataGridView.Size = new System.Drawing.Size(300, 220);
+            this.genresDataGridView.TabIndex = 0;
+            this.genresDataGridView.Visible = false;
+            // 
+            // dataGridViewTextBoxColumn1
+            // 
+            this.dataGridViewTextBoxColumn1.DataPropertyName = "Id_genre";
+            this.dataGridViewTextBoxColumn1.HeaderText = "Id_genre";
+            this.dataGridViewTextBoxColumn1.MinimumWidth = 6;
+            this.dataGridViewTextBoxColumn1.Name = "dataGridViewTextBoxColumn1";
+            this.dataGridViewTextBoxColumn1.Width = 125;
+            // 
+            // dataGridViewTextBoxColumn2
+            // 
+            this.dataGridViewTextBoxColumn2.DataPropertyName = "Name_genre";
+            this.dataGridViewTextBoxColumn2.HeaderText = "Name_genre";
+            this.dataGridViewTextBoxColumn2.MinimumWidth = 6;
+            this.dataGridViewTextBoxColumn2.Name = "dataGridViewTextBoxColumn2";
+            this.dataGridViewTextBoxColumn2.Width = 125;
+            // 
+            // dataGridViewTextBoxColumn3
+            // 
+            this.dataGridViewTextBoxColumn3.DataPropertyName = "Description_genre";
+            this.dataGridViewTextBoxColumn3.HeaderText = "Description_genre";
+            this.dataGridViewTextBoxColumn3.MinimumWidth = 6;
+            this.dataGridViewTextBoxColumn3.Name = "dataGridViewTextBoxColumn3";
+            this.dataGridViewTextBoxColumn3.Width = 125;
+            // 
             // FormADMINMODE
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1050, 650);
-            this.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.ClientSize = new System.Drawing.Size(1400, 800);
+            this.Controls.Add(this.genresDataGridView);
+            this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "FormADMINMODE";
             this.Text = "Панель администратора";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormADMINMODE_FormClosing);
+            this.Load += new System.EventHandler(this.FormADMINMODE_Load);
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.FormADMINMODE_Paint);
+            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.FormADMINMODE_KeyDown);
             this.Resize += new System.EventHandler(this.FormADMINMODE_Resize);
             ((System.ComponentModel.ISupportInitialize)(this.kursovaya1DataSet)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.gamesBindingSource)).EndInit();
@@ -116,8 +190,18 @@
             ((System.ComponentModel.ISupportInitialize)(this.libraryBindingSource)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.ratingsBindingSource)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.reviewsBindingSource)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.genresBindingSource)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.genresDataGridView)).EndInit();
             this.ResumeLayout(false);
 
         }
+
+        private System.Windows.Forms.BindingSource genresBindingSource;
+        private Kursovaya1DataSetTableAdapters.GenresTableAdapter genresTableAdapter;
+        private Kursovaya1DataSetTableAdapters.TableAdapterManager tableAdapterManager;
+        private System.Windows.Forms.DataGridView genresDataGridView;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn1;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn2;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn3;
     }
 }
